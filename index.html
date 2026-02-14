@@ -2,108 +2,134 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>簡単クリックゲーム</title>
+    <title>糸通し風ゲーム</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden; /* スクロール禁止 */
-            background-color: #222;
-            font-family: sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            color: white;
-        }
-        canvas {
-            background-color: #000;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            max-width: 100%;
-            height: auto;
-            touch-action: none; /* スマホのスクロール干渉防止 */
-        }
-        .info {
-            position: absolute;
-            top: 20px;
-            text-align: center;
-            pointer-events: none;
-        }
+        body { margin: 0; overflow: hidden; background: #eee; font-family: sans-serif; }
+        canvas { display: block; background: #fff; margin: 20px auto; border: 2px solid #333; }
+        .info { text-align: center; }
     </style>
 </head>
 <body>
-
-    <div class="info">
-        <h1>ボール跳ねさせゲーム</h1>
-        <p>画面をクリックしてボールを跳ねさせよう！</p>
-        <h2 id="scoreDisplay">Score: 0</h2>
-    </div>
-
-    <canvas id="gameCanvas"></canvas>
+    <div class="info">クリック/スペースキーで上昇！</div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const scoreDisplay = document.getElementById('scoreDisplay');
 
-        // 画面サイズ設定
-        canvas.width = window.innerWidth > 500 ? 500 : window.innerWidth - 20;
-        canvas.height = 400;
+        // ゲーム設定
+        const config = {
+            gravity: 0.25,      // 重力（下降速度）
+            lift: -0.6,         // 上昇力（クリック時）
+            drag: 0.98,         // 速度の減衰
+            gap: 200,           // 障害物の隙間
+            obstacleWidth: 50
+        };
 
-        // ゲーム変数の初期化
-        let x = canvas.width / 2;
-        let y = canvas.height - 30;
-        let dx = 2;       // X軸の速度
-        let dy = -2;      // Y軸の速度
-        const ballRadius = 15;
+        let player = { x: 50, y: 300, vY: 0 };
+        let obstacles = [];
+        let frame = 0;
+        let isPressing = false;
         let score = 0;
+        let gameOver = false;
 
-        // クリック/タップ時のイベント
-        function handleClick(e) {
-            // クリックされるたびに少し加速し、方向を変える
-            dy = -Math.abs(dy) - 0.5; 
-            dx = (Math.random() - 0.5) * 10;
-            score++;
-            scoreDisplay.innerText = "Score: " + score;
+        // 入力検知
+        window.onmousedown = () => isPressing = true;
+        window.onmouseup = () => isPressing = false;
+        window.onkeydown = (e) => { if(e.code === 'Space') isPressing = true; };
+        window.onkeyup = (e) => { if(e.code === 'Space') isPressing = false; };
+
+        function createObstacle() {
+            const minHeight = 50;
+            const maxHeight = canvas.height - config.gap - minHeight;
+            const topH = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+            obstacles.push({ x: canvas.width, topH: topH });
         }
 
-        canvas.addEventListener('mousedown', handleClick);
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            handleClick();
-        });
+        function update() {
+            if (gameOver) return;
+
+            // プレイヤーの移動
+            if (isPressing) {
+                player.vY += config.lift;
+            }
+            player.vY += config.gravity;
+            player.vY *= config.drag;
+            player.y += player.vY;
+
+            // 障害物の生成と移動
+            if (frame % 100 === 0) createObstacle();
+            
+            obstacles.forEach((obs, index) => {
+                obs.x -= 3; // スピード
+
+                // 当たり判定
+                if (player.x + 10 > obs.x && player.x < obs.x + config.obstacleWidth) {
+                    if (player.y < obs.topH || player.y > obs.topH + config.gap) {
+                        gameOver = true;
+                    }
+                }
+
+                // スコア加算
+                if (obs.x + config.obstacleWidth === 50) score++;
+                
+                // 画面外に出た障害物を削除
+                if (obs.x < -config.obstacleWidth) obstacles.splice(index, 1);
+            });
+
+            // 画面外判定
+            if (player.y < 0 || player.y > canvas.height) gameOver = true;
+
+            frame++;
+        }
 
         function draw() {
-            // 背景クリア
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // ボールの描画
+            // プレイヤー（糸）
+            ctx.fillStyle = "red";
             ctx.beginPath();
-            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
-            ctx.fillStyle = "#FF4444";
+            ctx.arc(player.x, player.y, 8, 0, Math.PI * 2);
             ctx.fill();
-            ctx.closePath();
 
-            // 壁との当たり判定
-            if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
-                dx = -dx;
+            // 障害物
+            ctx.fillStyle = "#333";
+            obstacles.forEach(obs => {
+                ctx.fillRect(obs.x, 0, config.obstacleWidth, obs.topH);
+                ctx.fillRect(obs.x, obs.topH + config.gap, config.obstacleWidth, canvas.height);
+            });
+
+            // スコア
+            ctx.fillStyle = "#000";
+            ctx.font = "20px Arial";
+            ctx.fillText(`Score: ${score}`, 10, 30);
+
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0,0,0,0.5)";
+                ctx.fillRect(0,0,canvas.width, canvas.height);
+                ctx.fillStyle = "white";
+                ctx.fillText("GAME OVER", canvas.width/2 - 60, canvas.height/2);
+                ctx.fillText("Click to Restart", canvas.width/2 - 70, canvas.height/2 + 40);
             }
-            if (y + dy < ballRadius) {
-                dy = -dy;
-            } else if (y + dy > canvas.height - ballRadius) {
-                // 地面に着いたらゲームオーバー（またはリバウンド）
-                dy = -dy * 0.8; // 少し勢いを弱めて跳ねる
-                y = canvas.height - ballRadius;
-            }
-
-            x += dx;
-            y += dy;
-
-            requestAnimationFrame(draw);
         }
 
-        draw();
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        canvas.onclick = () => {
+            if (gameOver) {
+                player = { x: 50, y: 300, vY: 0 };
+                obstacles = [];
+                score = 0;
+                gameOver = false;
+                frame = 0;
+            }
+        };
+
+        loop();
     </script>
 </body>
 </html>
