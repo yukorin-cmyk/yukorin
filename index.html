@@ -2,31 +2,108 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>サンプルページ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>簡単クリックゲーム</title>
     <style>
         body {
+            margin: 0;
+            overflow: hidden; /* スクロール禁止 */
+            background-color: #222;
             font-family: sans-serif;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
+            justify-content: center;
             height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
+            color: white;
         }
-        .container {
+        canvas {
+            background-color: #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            max-width: 100%;
+            height: auto;
+            touch-action: none; /* スマホのスクロール干渉防止 */
+        }
+        .info {
+            position: absolute;
+            top: 20px;
             text-align: center;
-            padding: 2rem;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Hello, World!</h1>
-        <p>これは index.html の基本サンプルです。</p>
+
+    <div class="info">
+        <h1>ボール跳ねさせゲーム</h1>
+        <p>画面をクリックしてボールを跳ねさせよう！</p>
+        <h2 id="scoreDisplay">Score: 0</h2>
     </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+
+        // 画面サイズ設定
+        canvas.width = window.innerWidth > 500 ? 500 : window.innerWidth - 20;
+        canvas.height = 400;
+
+        // ゲーム変数の初期化
+        let x = canvas.width / 2;
+        let y = canvas.height - 30;
+        let dx = 2;       // X軸の速度
+        let dy = -2;      // Y軸の速度
+        const ballRadius = 15;
+        let score = 0;
+
+        // クリック/タップ時のイベント
+        function handleClick(e) {
+            // クリックされるたびに少し加速し、方向を変える
+            dy = -Math.abs(dy) - 0.5; 
+            dx = (Math.random() - 0.5) * 10;
+            score++;
+            scoreDisplay.innerText = "Score: " + score;
+        }
+
+        canvas.addEventListener('mousedown', handleClick);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleClick();
+        });
+
+        function draw() {
+            // 背景クリア
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // ボールの描画
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI * 2);
+            ctx.fillStyle = "#FF4444";
+            ctx.fill();
+            ctx.closePath();
+
+            // 壁との当たり判定
+            if (x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+                dx = -dx;
+            }
+            if (y + dy < ballRadius) {
+                dy = -dy;
+            } else if (y + dy > canvas.height - ballRadius) {
+                // 地面に着いたらゲームオーバー（またはリバウンド）
+                dy = -dy * 0.8; // 少し勢いを弱めて跳ねる
+                y = canvas.height - ballRadius;
+            }
+
+            x += dx;
+            y += dy;
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
 </body>
 </html>
